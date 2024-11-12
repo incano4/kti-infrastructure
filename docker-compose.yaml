@@ -15,17 +15,14 @@ services:
     # image: "aquaman/flask:1.0"
     build: .
     container_name: flask
-    environment:
-      # - FLASK_DEBUG=1
-      - SQL_DATABASE_TYPE=postgres
-      - SQL_USER=flask_user
-      - SQL_PASSWORD=Password!
-      - SQL_HOST=postgres
-      - SQL_PORT=5432
-      - SQL_DATABASE=flask_db
+    env_file:
+      - .env
+    secrets:
+      - sql_secret
     ports:
       - "5000:5000"
     command: flask --app flask_app run --host=0.0.0.0
+    # command: sleep infinity
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,19 +30,31 @@ services:
   postgres:
     image: "postgres:16.1-alpine"
     container_name: postgres
-    environment:
-      POSTGRES_PASSWORD: Password!
-      POSTGRES_USER: flask_user
-      POSTGRES_DB: flask_db
+    env_file:
+      - .env
+    secrets:
+      - postgres_secret
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    entrypoint: >
+      sh -c "
+      export POSTGRES_PASSWORD=$(cat /run/secrets/postgres_secret) &&
+      docker-entrypoint.sh postgres &&
+      unset POSTGRES_PASSWORD"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d flask_db -U flask_user"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+
 volumes:
   postgres_data:
+
+secrets:
+  sql_secret:
+    file: ./secrets/sql_pass
+  postgres_secret:
+    file: ./secrets/postgres_pass
